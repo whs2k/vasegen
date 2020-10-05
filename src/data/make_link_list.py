@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import requests
@@ -9,6 +10,7 @@ from selenium import webdriver
 search_url = 'https://www.metmuseum.org/art/collection/search#!?material=Vases'
 search_res_cls = 'result_card__link'
 search_link_re = r'search/\d{1,7}\?'
+vase_fname = 'data/raw/vase_links_all.txt'
 
 async def requests_setup():
     asession = AsyncHTMLSession()
@@ -49,6 +51,16 @@ def next_search_page(browser):
 
 
 if __name__ == '__main__':
+    if os.path.exists(vase_fname):
+        res = input(vase_fname + ' already exists, do you want to overwrite? [y or n]')
+        if 'y' in res:
+            print('Erasing ' + vase_fname)
+            with open(vase_fname, 'w') as f_links:
+                pass
+        else:
+            print('Exiting')
+            exit(0)
+
     browser = sel_setup()
     sel_get(browser, search_url)
     wait_load()  # let javascript load
@@ -66,7 +78,7 @@ if __name__ == '__main__':
         # messy, but try twice then break to salvage search_links object
         new_links = get_search_links(browser)
         search_links.update(new_links)
-        with open('data/raw/vase_links_all.txt', 'a') as f_links:
+        with open(vase_fname, 'a') as f_links:
             for link in new_links:
                 f_links.write(link)
                 f_links.write('\n')
@@ -77,7 +89,7 @@ if __name__ == '__main__':
             break
 
     # print(f'writing out {len(search_links)} search links')
-    # with open('data/raw/vase_links.txt', 'w') as f_links:
+    # with open(vase_fname, 'w') as f_links:
     #     for link in search_links:
     #         f_links.write(link)
     #         f_links.write('\n')
