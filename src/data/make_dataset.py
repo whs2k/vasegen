@@ -108,6 +108,9 @@ if __name__ == '__main__':
 
     all_info_lock = Lock()
     threads = list()
+
+    # make list of thread targets to run sequentially
+    # parameters are [target, whether_to_run, max_threads]
     thread_targets = list()
     thread_targets.append([get_img_info_thread, False, 32])
     thread_targets.append([get_img_thread, True, 10])
