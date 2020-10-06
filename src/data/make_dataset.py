@@ -59,24 +59,35 @@ def get_img_info_thread(url):
         img_info = dict(zip(keys, vals))
         img_info['src'] = src
 
+        # also get image description
+        img_desc_section = r.html.find('.artwork__intro__desc')
+        desc = img_desc_section[0].find('p')[0].text
+        img_info['description'] = desc
+        # input(img_info)
+
         facets = r.html.find('.artwork__facets')
+        # also get more metadata, but set defaults if they don't exist
+        locations = []
+        era = ''
+        for facet in facets:
+            facet_label = facet.find('.artwork__facets--label')
+            if not facet_label:
+                continue
+            elif 'Object Type' in facet_label[0].text:
+                categories = facet.find('a')
+                categories = [' '.join(c.text.split()[:-1]) for c in categories]
 
-        # also get categories
-        categories = facets[1].find('a')
-        categories = [c.text.split()[0] for c in categories]
+            elif 'Geographic' in facet_label[0].text:
+                locations = facet.find('a')
+                locations = [' '.join(l.text.split()[:-1]) for l in locations]
 
-        # locations
-        # locations = facets[2].find('a')
-        # locations = [l.text.split()[0] for l in locations]
-
-        # date/era
-        # era = facets[3].find('a')[0]
-        # era = era.text.split()[0]
-
+            elif 'Date / Era' in facet_label[0].text:
+                era = facet.find('a')[0]
+                era = ' '.join(era.text.split()[:-1])
 
         img_info['categories'] = categories
-        # img_info['location'] = location
-        # img_info['era'] = era
+        img_info['location'] = locations
+        img_info['era'] = era
 
         with all_info_lock:
             all_info[img_id] = img_info
@@ -112,14 +123,14 @@ if __name__ == '__main__':
     # make list of thread targets to run sequentially
     # parameters are [target, whether_to_run, max_threads]
     thread_targets = list()
-    thread_targets.append([get_img_info_thread, False, 32])
+    thread_targets.append([get_img_info_thread, True, 32])
     thread_targets.append([get_img_thread, True, 10])
     for thread_target, do_run, max_threads in thread_targets:
         if do_run:
             with open(vase_fname, 'r') as f_links:
                 for line in tqdm(f_links, total=n_vases):
                     url = line.strip()  # trim newline
-                    # get_img_thread(url)  # for testing
+                    # thread_target(url)  # for testing
                     t = Thread(target=thread_target, args=(url,))
                     t.start()
                     threads.append(t)
