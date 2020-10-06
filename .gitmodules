@@ -3,4 +3,4 @@
 	url = git@github.com:alexsaadfalcon/vase_imgs.git
 [submodule "models/pytorch_biggan"]
 	path = models/pytorch_biggan
-	url = https://github.com/ajbrock/BigGAN-PyTorch.git
+	url = git@github.com:alexsaadfalcon/biggan_vase.git
