@@ -1,5 +1,6 @@
 import sys
 import functools
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import init
@@ -19,7 +20,7 @@ except:
     from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
 
 class Generator(nn.Module):
-    def __init__(self, G_ch=64, dim_z=128, bottom_width=4, resolution=128,
+    def __init__(self, input_shape, G_ch=64, dim_z=128, bottom_width=4, resolution=128,
                  G_kernel_size=3, G_attn='64', n_classes=1000,
                  num_G_SVs=1, num_G_SV_itrs=1,
                  G_shared=True, shared_dim=0, hier=False,
@@ -31,6 +32,9 @@ class Generator(nn.Module):
                  G_param='SN', norm_style='bn',
                  **kwargs):
         super(Generator, self).__init__()
+        vase_embed = np.loadtxt('vase_embedding.txt')
+        self.vase_embed = torch.Tensor(np.reshape(vase_embed, (1, vase_embed.shape[0]))).to('cuda')
+        self.input_flat = nn.Linear(np.product(input_shape), dim_z)
         # Channel width mulitplier
         self.ch = G_ch
         # Dimensionality of the latent space
@@ -193,7 +197,7 @@ class Generator(nn.Module):
     # already been passed through G.shared to enable easy class-wise
     # interpolation later. If we passed in the one-hot and then ran it through
     # G.shared in this forward function, it would be harder to handle.
-    def forward(self, z, y):
+    def forward1(self, z, y):
         # If hierarchical, concatenate zs and ys
         if self.hier:
             zs = torch.split(z, self.z_chunk_size, 1)
@@ -215,3 +219,12 @@ class Generator(nn.Module):
 
         # Apply batchnorm-relu-conv-tanh at output
         return torch.tanh(self.output_layer(h))
+
+    def forward2(self, img):
+        y = self.vase_embed
+        flat_img = nn.Flatten()(img)
+        z = self.input_flat(flat_img)
+        return self.forward1(z, y)
+
+    # forward = forward1
+    forward = forward2
