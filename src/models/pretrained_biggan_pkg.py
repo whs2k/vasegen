@@ -46,8 +46,8 @@ def generate(model):
 
 def retrain(vaseGen, dataset, N, batch_size=1):
     vaseGen.pregan.train()
-    vaseGen.biggan.eval()
-    # vaseGen.biggan.train()
+    # vaseGen.biggan.eval()
+    vaseGen.biggan.train()
     for n, (x, y) in enumerate(dataset.take(N, batch_size)):
         vaseGen.pregan.optim.zero_grad()
         x = x.to('cuda')
@@ -90,9 +90,10 @@ def main():
     # vase_generate(vaseGen, data_gen)
 
     batch_size = 2
-    n_samples = 10000
+    n_samples = 1000
     retrain(vaseGen, data_gen, n_samples, batch_size)
-    vase_generate(vaseGen, data_gen)
+    while True:
+        vase_generate(vaseGen, data_gen)
 
 
 if __name__ == '__main__':
