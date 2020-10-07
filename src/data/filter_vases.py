@@ -1,6 +1,4 @@
-import os
 import pickle
-import shutil
 import dippykit as dip
 
 
@@ -16,10 +14,19 @@ with open(info_fname, 'rb') as f:
 
 print(len(all_info), 'vases')
 for img_id, img_info in all_info.items():
-    if 'Fragments' in img_info['categories'] \
-            or 'fragment' in img_info['description'].lower():
+    # input(img_info)  # if you want to see one line
+    if 'fragment' in img_info['Title'].lower() or \
+            'fragment' in img_info['description'].lower() or \
+            'Fragments' in img_info['categories']:
         continue
-    else:
+    # just get Terracotta
+    elif 'terra' in img_info['Title'].lower() or \
+            'Medium' not in img_info or \
+            ('Medium' in img_info and 'terra' in img_info['Medium'].lower()) or \
+            'terra' in img_info['description'].lower() or \
+            'Terracotta' in img_info['categories']:
+    # just get everything that's not broken
+    # else:
         try:
             img = dip.imread(id_to_img_name(img_id))
         except:

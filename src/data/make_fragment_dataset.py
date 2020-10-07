@@ -179,6 +179,9 @@ def fragment(img, m_min, m_max, n_min, n_max):
 
 dir_in = f'data/processed/full_vases/'
 dir_out = f'data/processed/vase_fragment_dataset/'
+if not os.path.isdir(dir_out):
+    os.mkdir(dir_out)
+
 out_img = lambda img_id: f'{dir_out}/full_{img_id}.jpg'
 out_frag = lambda img_id, n_frag: f'{dir_out}/frag_{img_id}_{n_frag}.jpg'
 
