@@ -146,7 +146,7 @@ def fragment(img, m_min, m_max, n_min, n_max):
         # print(a, b)
         ang = angles[n]
         # plt.plot((a[0], b[0]), (a[1], b[1]), marker='o')
-        for t in np.linspace(0, 1, 1000):
+        for t in np.linspace(0, 1, frag_size*2):
             p = t * a + (1 - t) * b
             img_ind = np.round(p).astype(np.int)
             img_ind[img_ind < 0] = 0
@@ -164,6 +164,11 @@ def fragment(img, m_min, m_max, n_min, n_max):
             mask[img_ind[0], n_slice] = 0
 
     new_img[~mask] = 255
+    # border is also funky, just trim it
+    new_img[0, :] = 255
+    new_img[-1, :] = 255
+    new_img[:, 0] = 255
+    new_img[:, -1] = 255
     # plt.subplot(121)
     # plt.imshow(new_img)
     # plt.subplot(122)
