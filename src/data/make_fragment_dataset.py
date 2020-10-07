@@ -1,7 +1,7 @@
 import os
-import sys
 import glob
-from scipy.ndimage import binary_fill_holes
+import shutil
+# from scipy.ndimage import binary_fill_holes
 import itertools
 import numpy as np
 import dippykit as dip
@@ -119,15 +119,15 @@ def fragment(img, m_min, m_max, n_min, n_max):
     cut_start_n = 0
     cuts = [[cut_start_m, cut_start_n]]
     for ang in angles:
-        cut_end_m1 = 127 if np.sign(cos(ang)) > 0 else 0
+        cut_end_m1 = frag_size-1 if np.sign(cos(ang)) > 0 else 0
         cut_end_n1 = cut_start_n + (cut_end_m1-cut_start_m) * tan(ang)
-        cut_end_n2 = 127 if np.sign(sin(ang)) > 0 else 0
+        cut_end_n2 = frag_size-1 if np.sign(sin(ang)) > 0 else 0
         cut_end_m2 = cut_start_m + (cut_end_n2-cut_start_n) / tan(ang)
         # print()
         # print('start', cut_start_m, cut_start_n)
         # print('option 1', cut_end_m1, cut_end_n1)
         # print('option 2', cut_end_m2, cut_end_n2)
-        if cut_end_n1 < 0 or cut_end_n1 >= 128:
+        if cut_end_n1 < 0 or cut_end_n1 >= frag_size:
             cut_end_n = cut_end_n2
             cut_end_m = cut_end_m2
         else:
@@ -139,19 +139,21 @@ def fragment(img, m_min, m_max, n_min, n_max):
         cut_start_n = cut_end_n
 
     mask = np.ones(new_img.shape, dtype=bool)
-    print('angles', angles)
-    print('cuts', cuts)
+    # print('angles', angles)
+    # print('cuts', cuts)
     for n, (a, b) in enumerate(zip(cuts[:-1], cuts[1:])):
         a, b = np.array(a), np.array(b)
-        print(a, b)
+        # print(a, b)
         ang = angles[n]
         # plt.plot((a[0], b[0]), (a[1], b[1]), marker='o')
         for t in np.linspace(0, 1, 1000):
             p = t * a + (1 - t) * b
             img_ind = np.round(p).astype(np.int)
-            new_img[img_ind[0], img_ind[1], :] = (255, 0, 0)
-            end_m = 128 if np.sign(sin(ang)) > 0 else 0
-            end_n = 128 if np.sign(-cos(ang)) > 0 else 0
+            img_ind[img_ind < 0] = 0
+            img_ind[img_ind > frag_size-1] = frag_size-1
+            # new_img[img_ind[0], img_ind[1], :] = (255, 0, 0)
+            end_m = frag_size-1 if np.sign(sin(ang)) > 0 else 0
+            end_n = frag_size-1 if np.sign(-cos(ang)) > 0 else 0
             m_slice = slice(img_ind[0], end_m) \
                 if end_m > img_ind[0] else \
                 slice(end_m, img_ind[0])
@@ -161,23 +163,26 @@ def fragment(img, m_min, m_max, n_min, n_max):
             mask[m_slice, img_ind[1]] = 0
             mask[img_ind[0], n_slice] = 0
 
-    plt.subplot(121)
-    plt.imshow(new_img)
-
-    plt.subplot(122)
-    new_img[mask] = 0
-    plt.imshow(mask.astype(np.int)*255)
-    plt.show()
+    new_img[~mask] = 255
+    # plt.subplot(121)
+    # plt.imshow(new_img)
+    # plt.subplot(122)
+    # plt.imshow(new_img)
+    # plt.show()
     return new_img
 
 
 dir_in = f'data/processed/full_vases/'
 dir_out = f'data/processed/vase_fragment_dataset/'
+out_img = lambda img_id: f'{dir_out}/full_{img_id}.jpg'
+out_frag = lambda img_id, n_frag: f'{dir_out}/frag_{img_id}_{n_frag}.jpg'
+
 n_fragments = 10
 frag_size = 128
 def main():
     for f_img in glob.glob(dir_in + '/*'):
         img = dip.imread(f_img)
+        img_id = int(os.path.split(f_img)[-1].split('.')[0])
         print(f_img, img.shape)
         if len(img.shape) == 3:
             gray = np.mean(img, axis=-1)
@@ -193,22 +198,25 @@ def main():
             frag = fragment(img, m_min, m_max, n_min, n_max)
             if frag is None:
                 frag_failed = True
-        input('done fragments')
+                break
+            dip.im_write(frag, out_frag(img_id, n))
 
         if frag_failed:
             continue
 
-        plt.close('all')
-        plt.subplot(221)
-        plt.imshow(img)
+        shutil.copyfile(f_img, out_img(img_id))
 
-        plt.subplot(222)
-        plt.imshow(grad)
-
-        plt.subplot(223)
-        plt.imshow(255*mask)
-
-        plt.show()
+        # plt.close('all')
+        # plt.subplot(221)
+        # plt.imshow(img)
+        #
+        # plt.subplot(222)
+        # plt.imshow(grad)
+        #
+        # plt.subplot(223)
+        # plt.imshow(255*mask)
+        #
+        # plt.show()
         # plt.pause(1)
 
 if __name__ == '__main__':
