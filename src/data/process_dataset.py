@@ -9,7 +9,7 @@ info_fname = 'data/raw/vase_info.pkl'
 id_to_img_name = lambda _img_id: f'data/raw/vase_imgs/{_img_id}.jpg'
 id_to_out_name = lambda _img_id: f'data/processed/full_vases/{_img_id}.jpg'
 
-outsize = (128, 128)
+outsize = (512, 512)
 
 with open(info_fname, 'rb') as f:
     all_info = pickle.load(f)
