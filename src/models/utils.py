@@ -51,6 +51,7 @@ class FragmentDataset:
             imgs, frags = [], []
             for _ in range(batch_size):
                 img_id = random.choice(self.img_ids)
+                # print(img_id)
                 n_frag = random.randint(0, self.n_frags-1)
                 img = self.loader(full_img(img_id))
                 frag = self.loader(frag_img(img_id, n_frag))

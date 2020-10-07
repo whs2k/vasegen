@@ -48,10 +48,10 @@ def retrain(vaseGen, dataset, N, batch_size=1):
     vaseGen.pregan.train()
     vaseGen.biggan.eval()
     # vaseGen.biggan.train()
-    for n, (x, y) in enumerate(dataset.take(N, 10)):
-        x.to('cuda')
-        y.to('cuda')
+    for n, (x, y) in enumerate(dataset.take(N, batch_size)):
         vaseGen.pregan.optim.zero_grad()
+        x = x.to('cuda')
+        y = y.to('cuda')
         loss = nn.MSELoss()(vaseGen(x), y)
         loss.backward()
         vaseGen.pregan.optim.step()
@@ -89,7 +89,7 @@ def main():
 
     # vase_generate(vaseGen, data_gen)
 
-    batch_size = 1
+    batch_size = 2
     n_samples = 10000
     retrain(vaseGen, data_gen, n_samples, batch_size)
     vase_generate(vaseGen, data_gen)
