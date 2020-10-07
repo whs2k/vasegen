@@ -1,6 +1,7 @@
 import glob
 import torch
 import random
+import torch.nn as nn
 import matplotlib.pyplot as plt
 from pytorch_pretrained_biggan import (BigGAN, one_hot_from_names, truncated_noise_sample,
                                        save_as_images, display_in_terminal)
@@ -43,31 +44,25 @@ def generate(model):
     # Save results as png images
     save_as_images(output, file_name='output/output')
 
-def retrain(model, dataset, N):
-    for x, y in dataset.take(N, 10):
-        with torch.autograd:
-            pass
+def retrain(vaseGen, dataset, N, batch_size=1):
+    vaseGen.pregan.train()
+    vaseGen.biggan.eval()
+    # vaseGen.biggan.train()
+    for n, (x, y) in enumerate(dataset.take(N, 10)):
+        x.to('cuda')
+        y.to('cuda')
+        vaseGen.pregan.optim.zero_grad()
+        loss = nn.MSELoss()(vaseGen(x), y)
+        loss.backward()
+        vaseGen.pregan.optim.step()
+        print('step', n, 'loss', loss)
 
-
-def main():
-    pregan = PreGAN()
-    pregan = pregan.to('cuda')
-
-    # print(pregan)
-    # biggan = BigGAN.from_pretrained('biggan-deep-512')
-    # generate(biggan)
-
-    # vaseGen = BothGAN(pregan, biggan)
-    # pregan.to('cuda')
-    # vaseGen = vaseGen.to('cuda')
-
-    data_gen = FragmentDataset()
+def vase_generate(vaseGen, data_gen):
     for frag, vase in data_gen.take(1, 1):
-        frag.to('cuda')
+        frag = frag.to('cuda')
         with torch.no_grad():
-            # test_vase = vaseGen(frag)
-            test_vase = pregan(frag)
-            input('SUCCESS')
+            # test_vase = pregan(frag)
+            test_vase = vaseGen(frag)
         test_vase = test_vase.to('cpu').numpy()
         vase = vase.numpy()
         plt.subplot(121)
@@ -76,8 +71,28 @@ def main():
         plt.imshow(vase[0].transpose((1,2,0)))
         plt.show()
 
-    retrain(vaseGen, data_gen, N=10000)
-    generate()
+
+def main():
+    pregan = PreGAN()
+    pregan.init_weights()
+    # print(pregan)
+    # pregan.to('cuda')  # done by vaseGen
+
+    biggan = BigGAN.from_pretrained('biggan-deep-512')
+    # generate(biggan)
+    # biggan.to('cuda')  # done by vaseGen
+
+    vaseGen = BothGAN(pregan, biggan)
+    vaseGen.to('cuda')
+
+    data_gen = FragmentDataset()
+
+    # vase_generate(vaseGen, data_gen)
+
+    batch_size = 1
+    n_samples = 10000
+    retrain(vaseGen, data_gen, n_samples, batch_size)
+    vase_generate(vaseGen, data_gen)
 
 
 if __name__ == '__main__':
