@@ -1,13 +1,15 @@
 import glob
 import torch
 import random
+import numpy as np
 import torch.nn as nn
+import torch_dct as dct
 import matplotlib.pyplot as plt
 from pytorch_pretrained_biggan import (BigGAN, one_hot_from_names, truncated_noise_sample,
                                        save_as_images, display_in_terminal)
 
 
-from src.models.utils import FragmentDataset, PreGAN, BothGAN
+from src.models.utils import FragmentDataset, PreGAN, BothGAN, loss_fn_scaled_mse
 
 # OPTIONAL: if you want to have more information on what's happening, activate the logger as follows
 import logging
@@ -48,13 +50,20 @@ def retrain(vaseGen, dataset, N, batch_size=1):
     vaseGen.pregan.train()
     # vaseGen.biggan.eval()
     vaseGen.biggan.train()
+    # loss_fn_mse = nn.MSELoss()
+    # loss_fn_dct = lambda x, y: loss_fn_mse(dct.dct(x), dct.dct(y))
+    # loss_fn_both = lambda x, y: loss_fn_mse(x, y) + loss_fn_dct(x, y)*1e-7
+    # loss_fn_both = lambda x, y: loss_fn_mse(x, y) * loss_fn_dct(x, y)
     for n, (x, y) in enumerate(dataset.take(N, batch_size)):
-        vaseGen.pregan.optim.zero_grad()
+        if n == N // 2:
+            pass
+            # vaseGen.biggan.train()
+        vaseGen.optim.zero_grad()
         x = x.to('cuda')
         y = y.to('cuda')
-        loss = nn.MSELoss()(vaseGen(x), y)
+        loss = loss_fn_scaled_mse(vaseGen(x), y)
         loss.backward()
-        vaseGen.pregan.optim.step()
+        vaseGen.optim.step()
         print('step', n, 'loss', loss)
 
 def vase_generate(vaseGen, data_gen):
@@ -64,6 +73,7 @@ def vase_generate(vaseGen, data_gen):
             # test_vase = pregan(frag)
             test_vase = vaseGen(frag)
         test_vase = test_vase.to('cpu').numpy()
+        print('max', np.max(test_vase), 'min', np.min(test_vase))
         vase = vase.numpy()
         plt.subplot(121)
         plt.imshow(test_vase[0].transpose((1,2,0)))
@@ -82,7 +92,7 @@ def main():
     # generate(biggan)
     # biggan.to('cuda')  # done by vaseGen
 
-    vaseGen = BothGAN(pregan, biggan)
+    vaseGen = BothGAN(pregan, biggan, lr=1e-5)
     vaseGen.to('cuda')
 
     data_gen = FragmentDataset()
