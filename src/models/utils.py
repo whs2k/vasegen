@@ -17,6 +17,9 @@ from pytorch_pretrained_biggan import one_hot_from_names
 
 alpha = np.concatenate([np.linspace(0, 1, 256), np.linspace(1, 0, 256)])
 alpha = torch.from_numpy(alpha).to('cuda', dtype=torch.float32)
+Sx = torch.Tensor([[[[1, 0, -1], [2, 0, -2], [1, 0, -1]]]]).to('cuda', dtype=torch.float32)
+Sy = torch.transpose(Sx, 1, 0)
+
 data_dir = 'data/processed/vase_fragment_dataset/'
 full_img = lambda img_id: f'{data_dir}/full_{img_id}.jpg'
 frag_img = lambda img_id, n_frag: f'{data_dir}/frag_{img_id}_{n_frag}.jpg'
@@ -54,6 +57,31 @@ def loss_fn_scaled_mse(x, y):
     # input()
     return loss
 
+
+def loss_fn_scaled_mae(x, y):
+    loss = torch.abs(x-y)
+    n_terms = np.product(loss.shape)
+    # print(loss.shape)
+    loss = torch.einsum('bcmn,n->bcm', loss, alpha)
+    # print(loss.shape)
+    loss = torch.einsum('bcm,m->bc', loss, alpha)
+    # print(loss.shape)
+    loss = torch.mean(loss) / n_terms
+    # print(loss.shape)
+    # input()
+    return loss
+
+
+def sobel(img):
+    # print(img.shape)
+    gray = torch.sum(img, keepdim=True, dim=1)
+    # print(gray.shape)
+    edge_x = torch.conv2d(gray, Sx, padding=1)
+    # print(edge_x.shape)
+    edge_y = torch.conv2d(gray, Sy, padding=1)
+    # input()
+    return edge_x**2 + edge_y**2
+    # return torch.sqrt(edge_x**2 + edge_y**2)
 
 
 class FragmentDataset:

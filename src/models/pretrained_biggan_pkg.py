@@ -9,7 +9,8 @@ from pytorch_pretrained_biggan import (BigGAN, one_hot_from_names, truncated_noi
                                        save_as_images, display_in_terminal)
 
 
-from src.models.utils import FragmentDataset, PreGAN, BothGAN, loss_fn_scaled_mse
+from src.models.utils import FragmentDataset, PreGAN, BothGAN, \
+    loss_fn_scaled_mse, loss_fn_scaled_mae, sobel
 
 # OPTIONAL: if you want to have more information on what's happening, activate the logger as follows
 import logging
@@ -54,19 +55,51 @@ def retrain(vaseGen, dataset, N, batch_size=1):
     # loss_fn_dct = lambda x, y: loss_fn_mse(dct.dct(x), dct.dct(y))
     # loss_fn_both = lambda x, y: loss_fn_mse(x, y) + loss_fn_dct(x, y)*1e-7
     # loss_fn_both = lambda x, y: loss_fn_mse(x, y) * loss_fn_dct(x, y)
-    for n, (x, y) in enumerate(dataset.take(N, batch_size)):
-        if n == N // 2:
-            pass
-            # vaseGen.biggan.train()
-        vaseGen.optim.zero_grad()
-        x = x.to('cuda')
-        y = y.to('cuda')
-        loss = loss_fn_scaled_mse(vaseGen(x), y)
-        loss.backward()
-        vaseGen.optim.step()
-        print('step', n, 'loss', loss)
+
+    # TODO: use the resulting weights in latent space and interpolate vases
+    try:
+        # for n, (x, y) in enumerate(dataset.take(N, batch_size)):
+        x, y = next(dataset.take(1, batch_size))
+        for n in range(1000):
+            if n == N // 2:
+                pass
+                # vaseGen.biggan.train()
+            vaseGen.optim.zero_grad()
+            x = x.to('cuda')
+            y = y.to('cuda')
+            y_pred = vaseGen(x)
+            # y_edge = sobel(y).cpu().numpy()[0, 0, :, :]
+            # plt.imshow(y_edge)
+            # plt.show()
+            loss1 = loss_fn_scaled_mse(y_pred, y)
+            loss2 = None
+            loss = loss1
+
+            # loss2 = loss_fn_scaled_mse(sobel(y_pred), sobel(y))
+            # loss = loss1 + loss2
+            if torch.isnan(loss):
+                break
+            loss.backward()
+            vaseGen.optim.step()
+            print('step', n, 'loss1', loss1, 'loss2', loss2)
+    except:
+        print('training exited early')
+
+    with torch.no_grad():
+        test_vase = vaseGen(x)
+    test_vase = test_vase.to('cpu').numpy()
+    vase = y
+    print('max', np.max(test_vase), 'min', np.min(test_vase))
+    vase = vase.cpu().numpy()
+    plt.subplot(121)
+    plt.imshow(test_vase[0].transpose((1,2,0)))
+    plt.subplot(122)
+    plt.imshow(vase[0].transpose((1,2,0)))
+    plt.suptitle('Last Training Sample')
+    plt.show()
 
 def vase_generate(vaseGen, data_gen):
+    vaseGen.eval()
     for frag, vase in data_gen.take(1, 1):
         frag = frag.to('cuda')
         with torch.no_grad():
@@ -79,6 +112,7 @@ def vase_generate(vaseGen, data_gen):
         plt.imshow(test_vase[0].transpose((1,2,0)))
         plt.subplot(122)
         plt.imshow(vase[0].transpose((1,2,0)))
+        plt.suptitle('Generated and Target Vase')
         plt.show()
 
 
@@ -99,8 +133,8 @@ def main():
 
     # vase_generate(vaseGen, data_gen)
 
-    batch_size = 2
-    n_samples = 1000
+    batch_size = 1
+    n_samples = 100
     retrain(vaseGen, data_gen, n_samples, batch_size)
     while True:
         vase_generate(vaseGen, data_gen)
