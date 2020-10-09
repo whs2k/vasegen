@@ -29,7 +29,7 @@ if not os.path.isdir(dir_out):
 out_img = lambda img_id: f'{dir_out}/full_{img_id}.jpg'
 out_frag = lambda img_id, n_frag: f'{dir_out}/frag_{img_id}_{n_frag}.jpg'
 
-n_fragments = 10
+n_fragments = 2
 
 _pix2pix_counter = 1
 _pix2pix_marker_size = 5
@@ -108,7 +108,7 @@ def mark_image_box(img, m_min, m_max, n_min, n_max):
         new_img[m_min:m_max, n-thick:n+thick] = 255
     return new_img
 
-def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
+def fragment_slow(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
     if m_min > m_max - frag_size[0] or n_min > n_max - frag_size[1]:
         return None, (0, 0)
 
@@ -204,6 +204,120 @@ def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
     new_img[:, -1] = 255
     # plt.subplot(121)
     # plt.imshow(new_img)
+    # plt.subplot(122)
+    # plt.imshow(new_img)
+    # plt.show()
+    return new_img, (m_start, n_start)
+
+
+def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
+    if m_min > m_max - frag_size[0] or n_min > n_max - frag_size[1]:
+        return None, (0, 0)
+
+    # m_start = np.random.randint(m_min, m_max+1-frag_size)
+    # n_start = np.random.randint(n_min, n_max+1-frag_size)
+
+    # use normal dist, stdev range/2/2
+    norm_scale = 2
+
+    m_choices = np.arange(m_min, m_max+1-frag_size[0])
+    n_choices = np.arange(n_min, n_max+1-frag_size[1])
+
+    m_ind = np.random.normal(len(m_choices)/2, len(m_choices)/2/norm_scale)
+    n_ind = np.random.normal(len(n_choices)/2, len(n_choices)/2/norm_scale)
+
+    m_ind = round(m_ind)
+    n_ind = round(n_ind)
+
+    m_ind = 0 if m_ind < 0 else m_ind
+    m_ind = len(m_choices) - 1 if m_ind >= len(m_choices) else m_ind
+
+    n_ind = 0 if n_ind < 0 else n_ind
+    n_ind = len(n_choices) - 1 if n_ind >= len(n_choices) else n_ind
+
+    m_start = m_choices[m_ind]
+    n_start = n_choices[n_ind]
+
+    new_img = np.copy(img[m_start:m_start+frag_size[0], n_start:n_start+frag_size[1]])
+
+    # random shapes method
+    # shape = np.random.choice(['triangle', 'rectangle', 'circle'])
+    # from skimage.draw import random_shapes
+    # result, shapes = random_shapes(new_img.shape, max_shapes=1,
+    #                                shape=shape, multichannel=False)
+    # print(shapes)
+    # mask = result != 255
+    # new_img[~mask] = 255
+
+    from skimage.draw import polygon
+
+    # generate 4 random points along perimeter of new_img
+    n_points = 4
+    # perimeter = 2*(frag_size[0]+frag_size[1])
+    perim_sizes = np.array([
+        frag_size[0],
+        frag_size[1],
+        frag_size[0],
+        frag_size[1],
+    ])
+    perim_sum = np.array([
+        0,
+        frag_size[0],
+        frag_size[0]+frag_size[1],
+        2*frag_size[0]+frag_size[1],
+    ])
+    offsets = np.random.random((n_points,))*perim_sizes
+    offsets = offsets + perim_sum + np.random.random()*frag_size[0]
+    def offset_to_xy(o):
+        # clean way, way below is equivalent but branchless
+        # if o < perim_sum[1]:
+        #     return o, 0
+        # elif o < perim_sum[2]:
+        #     return frag_size[0], o-perim_sum[1]
+        # elif o < perim_sum[3]:
+        #     return frag_size[0] + (perim_sum[2]-o), frag_size[1]
+        # else:
+        #     return 0, frag_size[1] + (perim_sum[3]-o)
+
+        # nvm this was hard
+        # return np.array((o, 0)) * (0 < o < perim_sum[1]) * \
+        #        np.array((frag_size[0], o-perim_sum[1])) * (perim_sum[1] < o < perim_sum[2]) * \
+        #        np.array((frag_size[0]+perim_sum[2]-o, frag_size[1])) * (perim_sum[2] < o < perim_sum[3]) * \
+        #        np.array((0, frag_size[1] + perim_sum[3]-o)) * (perim_sum[3] < o)
+        # let me try splitting x and y
+
+        x = o * (o < perim_sum[1]) + \
+            frag_size[0] * np.logical_and(perim_sum[1] < o, o < perim_sum[2]) + \
+            (frag_size[0] + perim_sum[2] - o)*np.logical_and(perim_sum[2] < o, o < perim_sum[3])
+
+        y = (o-perim_sum[1]) * np.logical_and(perim_sum[1] < o, o < perim_sum[2]) + \
+            frag_size[1]*np.logical_and(perim_sum[2] < o, o < perim_sum[3]) + \
+            (frag_size[1] + perim_sum[3]-o)*(perim_sum[3] < o)
+
+        return np.stack((x, y), axis=1)
+
+    # poly = np.array([offset_to_xy(o) for o in offsets])
+    poly = offset_to_xy(offsets)  # branchless
+    mm, nn = polygon(poly[:, 0], poly[:, 1], new_img.shape)
+
+    # offsets = perim_sizes / 2 + perim_sum
+    # poly = np.array([offset_to_xy(o) for o in offsets])
+    # poly = offset_to_xy(offsets)  # branchless
+    # mm, nn = polygon(poly[:, 0], poly[:, 1], new_img.shape)
+
+    # print(offsets)
+    # print(poly)
+
+    mask = np.zeros_like(new_img, dtype=bool)
+    mask[mm, nn] = 1
+    new_img[~mask] = 255
+    # border is also funky, just trim it
+    new_img[0, :] = 255
+    new_img[-1, :] = 255
+    new_img[:, 0] = 255
+    new_img[:, -1] = 255
+    # plt.subplot(121)
+    # plt.imshow(img)
     # plt.subplot(122)
     # plt.imshow(new_img)
     # plt.show()
@@ -330,6 +444,7 @@ def main_pix2pix_context():
                 border_inds = np.argwhere(grad_top)
                 hull = ConvexHull(border_inds)
                 perim = border_inds[hull.vertices]
+                perim = np.concatenate((perim, border_inds[hull.vertices[:1]]), axis=0)
                 frag_context = np.zeros_like(grad_top)
                 for a, b in zip(perim[:-1], perim[1:]):
                     a, b = np.array(a), np.array(b)
