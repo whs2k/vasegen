@@ -49,8 +49,8 @@ def generate(model):
 
 def retrain(vaseGen, dataset, N, batch_size=1):
     vaseGen.pregan.train()
-    vaseGen.biggan.eval()
-    # vaseGen.biggan.train()
+    # vaseGen.biggan.eval()
+    vaseGen.biggan.train()
     # loss_fn_mse = nn.MSELoss()
     # loss_fn_dct = lambda x, y: loss_fn_mse(dct.dct(x), dct.dct(y))
     # loss_fn_both = lambda x, y: loss_fn_mse(x, y) + loss_fn_dct(x, y)*1e-7

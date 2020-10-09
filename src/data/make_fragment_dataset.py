@@ -11,6 +11,23 @@ import matplotlib.pyplot as plt
 sin = lambda ang: np.sin(ang * np.pi / 180)
 cos = lambda ang: np.cos(ang * np.pi / 180)
 tan = lambda ang: sin(ang) / cos(ang)
+default_frag_size = 128
+
+dir_in = f'data/processed/full_vases/'
+dir_out = f'data/processed/vase_fragment_dataset/'
+if not os.path.isdir(dir_out):
+    os.mkdir(dir_out)
+
+out_img = lambda img_id: f'{dir_out}/full_{img_id}.jpg'
+out_frag = lambda img_id, n_frag: f'{dir_out}/frag_{img_id}_{n_frag}.jpg'
+
+n_fragments = 10
+
+_pix2pix_counter = 1
+_pix2pix_outsize = (256, 256)
+_pix2pix_dir = 'data/processed/pix2pix_vase_fragments/train/'
+os.makedirs(_pix2pix_dir, exist_ok=True)
+
 
 def contiguous(point, shape, range=1):
     # p_x = [point[0]-1, point[0], point[0]+1]
@@ -42,7 +59,9 @@ def space_fill(img, start=None, ):
     details = img > thresh
     mask[details] = 1
 
-    trim = 25
+    # trim = 25
+    # make this general to image shape, not just 512x512
+    trim = img.shape[0] // 20
     mask[:trim, :] = 0
     mask[-trim:, :] = 0
     mask[:, :trim] = 0
@@ -79,7 +98,7 @@ def mark_image_box(img, m_min, m_max, n_min, n_max):
         new_img[m_min:m_max, n-thick:n+thick] = 255
     return new_img
 
-def fragment(img, m_min, m_max, n_min, n_max):
+def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
     if m_min > m_max - frag_size or n_min > n_max - frag_size:
         return None
 
@@ -177,17 +196,7 @@ def fragment(img, m_min, m_max, n_min, n_max):
     return new_img
 
 
-dir_in = f'data/processed/full_vases/'
-dir_out = f'data/processed/vase_fragment_dataset/'
-if not os.path.isdir(dir_out):
-    os.mkdir(dir_out)
-
-out_img = lambda img_id: f'{dir_out}/full_{img_id}.jpg'
-out_frag = lambda img_id, n_frag: f'{dir_out}/frag_{img_id}_{n_frag}.jpg'
-
-n_fragments = 10
-frag_size = 128
-def main():
+def main_biggan():
     for f_img in glob.glob(dir_in + '/*'):
         img = dip.imread(f_img)
         img_id = int(os.path.split(f_img)[-1].split('.')[0])
@@ -227,5 +236,42 @@ def main():
         # plt.show()
         # plt.pause(1)
 
+
+def main_pix2pix():
+    def out_pix2pix_name():
+        global _pix2pix_counter
+        outname = f'{_pix2pix_dir}/{_pix2pix_counter}.jpg'
+        _pix2pix_counter += 1
+        return outname
+
+    for f_img in glob.glob(dir_in + '/*'):
+        try:
+            img = dip.imread(f_img)
+        except:
+            continue
+        img_out = dip.resize(img, _pix2pix_outsize)
+        print(f_img, img.shape)
+        if len(img.shape) == 3:
+            gray = np.mean(img, axis=-1)
+        else:
+            # gray = img
+            continue
+        grad = dip.transforms.edge_detect(gray)
+        mask, m_min, m_max, n_min, n_max = space_fill(grad)
+
+        for n in range(n_fragments):
+            frag_size = max(img.shape[0], img.shape[1]) // 4
+            frag = fragment(img, m_min, m_max, n_min, n_max, frag_size=frag_size)
+            if frag is None:
+                break
+            else:
+                frag = dip.resize(frag, _pix2pix_outsize)
+                both = np.concatenate([img_out, frag], axis=1)
+                # plt.imshow(both)
+                # plt.show()
+
+                dip.im_write(both, out_pix2pix_name())
+
 if __name__ == '__main__':
-    main()
+    main_pix2pix()
+    # main_biggan()

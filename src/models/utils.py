@@ -188,6 +188,8 @@ class BothGAN(nn.Module):
         self.add_module('biggan', self.biggan)
 
         # optim called last
+        # for k, v in self.named_parameters():
+        #     print('BothGAN parameter', k)
         self.optim = optim.Adam(self.parameters(), lr=lr)
         # self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
         #                         betas=(self.B1, self.B2), weight_decay=0,
