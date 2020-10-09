@@ -2,7 +2,7 @@ import os
 import shutil
 import pickle
 import dippykit as dip
-
+from cv2 import INTER_AREA
 
 info_fname = 'data/raw/vase_info.pkl'
 
@@ -40,7 +40,7 @@ def main(outsize=default_outsize):
                 except:
                     continue
                 print(img.shape)
-                new_img = dip.resize(img, dsize=outsize)
+                new_img = dip.resize(img, dsize=outsize, interpolation=INTER_AREA)
                 dip.im_write(new_img, id_to_out_name(img_id))
             else:
                 shutil.copyfile(id_to_img_name(img_id), id_to_out_name(img_id))

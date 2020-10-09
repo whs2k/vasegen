@@ -7,15 +7,19 @@ import numpy as np
 import dippykit as dip
 import matplotlib.pyplot as plt
 
+from tqdm import tqdm
+
 import cv2
+from cv2 import INTER_AREA
 from skimage import filters
+from scipy.spatial import ConvexHull
 from scipy.ndimage.morphology import binary_erosion
 
 
 sin = lambda ang: np.sin(ang * np.pi / 180)
 cos = lambda ang: np.cos(ang * np.pi / 180)
 tan = lambda ang: sin(ang) / cos(ang)
-default_frag_size = 128
+default_frag_size = (128, 128)
 
 dir_in = f'data/processed/full_vases/'
 dir_out = f'data/processed/vase_fragment_dataset/'
@@ -28,6 +32,7 @@ out_frag = lambda img_id, n_frag: f'{dir_out}/frag_{img_id}_{n_frag}.jpg'
 n_fragments = 10
 
 _pix2pix_counter = 1
+_pix2pix_marker_size = 5
 _pix2pix_outsize = (256, 256)
 _pix2pix_dir = 'data/processed/pix2pix_vase_fragments/train/'
 os.makedirs(_pix2pix_dir, exist_ok=True)
@@ -57,11 +62,12 @@ def space_fill(img, start=None, ):
     # max_count = 10
     # mask[start] = max_count
 
-    mask = np.zeros(img.shape, dtype=bool)
-    thresh = np.percentile(img.flatten(), 95)
+    thresh = np.percentile(img, 95)
 
-    details = img > thresh
-    mask[details] = 1
+    # mask2 = np.zeros(img.shape, dtype=bool)
+    # details = img > thresh
+    # mask2[details] = 1
+    mask = img > thresh
 
     # trim = 25
     # make this general to image shape, not just 512x512
@@ -103,8 +109,8 @@ def mark_image_box(img, m_min, m_max, n_min, n_max):
     return new_img
 
 def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
-    if m_min > m_max - frag_size or n_min > n_max - frag_size:
-        return None
+    if m_min > m_max - frag_size[0] or n_min > n_max - frag_size[1]:
+        return None, (0, 0)
 
     # m_start = np.random.randint(m_min, m_max+1-frag_size)
     # n_start = np.random.randint(n_min, n_max+1-frag_size)
@@ -112,8 +118,8 @@ def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
     # use normal dist, stdev range/2/2
     norm_scale = 2
 
-    m_choices = np.arange(m_min, m_max+1-frag_size)
-    n_choices = np.arange(n_min, n_max+1-frag_size)
+    m_choices = np.arange(m_min, m_max+1-frag_size[0])
+    n_choices = np.arange(n_min, n_max+1-frag_size[1])
 
     m_ind = np.random.normal(len(m_choices)/2, len(m_choices)/2/norm_scale)
     n_ind = np.random.normal(len(n_choices)/2, len(n_choices)/2/norm_scale)
@@ -130,7 +136,7 @@ def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
     m_start = m_choices[m_ind]
     n_start = n_choices[n_ind]
 
-    new_img = np.copy(img[m_start:m_start+frag_size, n_start:n_start+frag_size])
+    new_img = np.copy(img[m_start:m_start+frag_size[0], n_start:n_start+frag_size[1]])
 
     n_cuts = np.random.choice([3, 4, 5], p=[.4, .4, .2])
     angles = np.linspace(0, 360, n_cuts+1)[:-1]
@@ -138,19 +144,19 @@ def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
     angles += np.random.uniform(0, 30/n_cuts, angles.shape)
     # rotate all angles randomly
     angles += np.random.random()*90/n_cuts
-    cut_start_m = np.random.randint(0, frag_size//2)
+    cut_start_m = np.random.randint(0, frag_size[0]//2)
     cut_start_n = 0
     cuts = [[cut_start_m, cut_start_n]]
     for ang in angles:
-        cut_end_m1 = frag_size-1 if np.sign(cos(ang)) > 0 else 0
+        cut_end_m1 = frag_size[0]-1 if np.sign(cos(ang)) > 0 else 0
         cut_end_n1 = cut_start_n + (cut_end_m1-cut_start_m) * tan(ang)
-        cut_end_n2 = frag_size-1 if np.sign(sin(ang)) > 0 else 0
+        cut_end_n2 = frag_size[1]-1 if np.sign(sin(ang)) > 0 else 0
         cut_end_m2 = cut_start_m + (cut_end_n2-cut_start_n) / tan(ang)
         # print()
         # print('start', cut_start_m, cut_start_n)
         # print('option 1', cut_end_m1, cut_end_n1)
         # print('option 2', cut_end_m2, cut_end_n2)
-        if cut_end_n1 < 0 or cut_end_n1 >= frag_size:
+        if cut_end_n1 < 0 or cut_end_n1 >= frag_size[1]:
             cut_end_n = cut_end_n2
             cut_end_m = cut_end_m2
         else:
@@ -169,14 +175,17 @@ def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
         # print(a, b)
         ang = angles[n]
         # plt.plot((a[0], b[0]), (a[1], b[1]), marker='o')
-        for t in np.linspace(0, 1, frag_size*2):
+        for t in np.linspace(0, 1, max(frag_size)*2):
             p = t * a + (1 - t) * b
             img_ind = np.round(p).astype(np.int)
             img_ind[img_ind < 0] = 0
-            img_ind[img_ind > frag_size-1] = frag_size-1
-            # new_img[img_ind[0], img_ind[1], :] = (255, 0, 0)
-            end_m = frag_size-1 if np.sign(sin(ang)) > 0 else 0
-            end_n = frag_size-1 if np.sign(-cos(ang)) > 0 else 0
+
+            # img_ind[img_ind > frag_size-1] = frag_size-1
+            img_ind[0] = min(img_ind[0], frag_size[0]-1)
+            img_ind[1] = min(img_ind[1], frag_size[1]-1)
+
+            end_m = frag_size[0]-1 if np.sign(sin(ang)) > 0 else 0
+            end_n = frag_size[0]-1 if np.sign(-cos(ang)) > 0 else 0
             m_slice = slice(img_ind[0], end_m) \
                 if end_m > img_ind[0] else \
                 slice(end_m, img_ind[0])
@@ -185,6 +194,7 @@ def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
                 slice(end_n, img_ind[1])
             mask[m_slice, img_ind[1]] = 0
             mask[img_ind[0], n_slice] = 0
+            # new_img[img_ind[0], img_ind[1], :] = (255, 0, 0)
 
     new_img[~mask] = 255
     # border is also funky, just trim it
@@ -253,7 +263,7 @@ def main_pix2pix():
             img = dip.imread(f_img)
         except:
             continue
-        img_out = dip.resize(img, _pix2pix_outsize)
+        img_out = dip.resize(img, _pix2pix_outsize, interpolation=INTER_AREA)
         print(f_img, img.shape)
         if len(img.shape) == 3:
             gray = np.mean(img, axis=-1)
@@ -264,12 +274,13 @@ def main_pix2pix():
         mask, m_min, m_max, n_min, n_max = space_fill(grad)
 
         for n in range(n_fragments):
-            frag_size = max(img.shape[0], img.shape[1]) // 4
+            # frag_size = max(img.shape[0], img.shape[1]) // 4
+            frag_size = img.shape[0]//4, img.shape[1]//4
             frag, _ = fragment(img, m_min, m_max, n_min, n_max, frag_size=frag_size)
             if frag is None:
                 break
             else:
-                frag = dip.resize(frag, _pix2pix_outsize)
+                frag = dip.resize(frag, _pix2pix_outsize, interpolation=INTER_AREA)
                 both = np.concatenate([img_out, frag], axis=1)
                 # plt.imshow(both)
                 # plt.show()
@@ -283,12 +294,12 @@ def main_pix2pix_context():
         _pix2pix_counter += 1
         return outname
 
-    for f_img in glob.glob(dir_in + '/*'):
+    for f_img in tqdm(glob.glob(dir_in + '/*')):
         try:
             img = dip.imread(f_img)
         except:
             continue
-        img_out = dip.resize(img, _pix2pix_outsize)
+        img_out = dip.resize(img, _pix2pix_outsize, interpolation=INTER_AREA)
         print(f_img, img.shape)
         if len(img.shape) == 3:
             gray = np.mean(img, axis=-1)
@@ -297,32 +308,83 @@ def main_pix2pix_context():
             continue
         grad = dip.transforms.edge_detect(gray)
         mask, m_min, m_max, n_min, n_max = space_fill(grad)
+        trimx = grad.shape[0] // 20
+        trimy = grad.shape[1] // 20
+        grad[:trimx, :] = 0
+        grad[-trimx:, :] = 0
+        grad[:, :trimy] = 0
+        grad[:, -trimy:] = 0
+        markerx = _pix2pix_marker_size * (grad.shape[0]) // _pix2pix_outsize[0] // 2
+        markery = _pix2pix_marker_size * (grad.shape[1]) // _pix2pix_outsize[1] // 2
 
         for n in range(n_fragments):
-            frag_size = max(img.shape[0], img.shape[1]) // 4
-            frag, pos = fragment(img, m_min, m_max, n_min, n_max, frag_size=frag_size)
+            # frag_size = max(img.shape[0], img.shape[1]) // 4
+            frag_size = img.shape[0]//4, img.shape[1]//4
+            frag, frag_pos = fragment(img, m_min, m_max, n_min, n_max, frag_size=frag_size)
+            fragx = slice(frag_pos[0], frag_pos[0]+frag_size[0])
+            fragy = slice(frag_pos[1], frag_pos[1]+frag_size[1])
             if frag is None:
                 break
             else:
-                frag_context2 = grad > np.percentile(grad, 95)
-                ret, thresh = cv2.threshold(grad, np.percentile(grad, 95), 255, 0)
-                contours, hier = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-                frag_context = np.zeros_like(grad)
-                cv2.drawContours(frag_context, contours, -1, 255, 3)
-                # val = filters.threshold_otsu(gray); frag_context = gray < val
-                # frag_context2 = frag_context & binary_erosion(frag_context)
-                # both = np.concatenate([img_out, frag_context], axis=1)
-                plt.subplot(131)
-                plt.imshow(grad)
-                plt.subplot(132)
-                plt.imshow(frag_context)
-                plt.subplot(133)
-                plt.imshow(frag_context2)
-                # plt.imshow(both)
-                plt.show()
+                grad_top = grad > np.percentile(grad, 99)
+                border_inds = np.argwhere(grad_top)
+                hull = ConvexHull(border_inds)
+                perim = border_inds[hull.vertices]
+                frag_context = np.zeros_like(grad_top)
+                for a, b in zip(perim[:-1], perim[1:]):
+                    a, b = np.array(a), np.array(b)
+                    for t in np.linspace(0, 1, max(grad.shape)):
+                        p = t * a + (1 - t) * b
+                        ind = np.round(p).astype(np.int)
+                        mstart = max(ind[0]-markerx, 0)
+                        mstop = min(ind[0]+markerx, grad.shape[0]-1)
+                        nstart = max(ind[1]-markery, 0)
+                        nstop = min(ind[1]+markery, grad.shape[1]-1)
+                        frag_context[mstart:mstop, nstart:nstop] = 1
 
-                # dip.im_write(both, out_pix2pix_name())
-                break
+                # binary erosion - erodes binary blocks like sand bars
+                # frag_context2 = frag_context & binary_erosion(frag_context)
+
+                # threshold/contour method
+                # ret, thresh = cv2.threshold(grad, np.percentile(grad, 95), 255, 0)
+                # contours, hier = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                # print(contours, hier.shape)
+                # frag_context = np.zeros_like(grad)
+                # cv2.drawContours(frag_context, contours, -1, 255, 3)
+                # draw contours according to hierarchy
+                # frag_context2 = np.zeros_like(grad)
+                # hier = (hier - np.min(hier)) / (np.max(hier) - np.min(hier))
+                # for h, contlist in zip(hier[0], contours):
+                #     for cont in contlist:
+                #         frag_context2[cont[0, 1], cont[0, 0]] = max(h)
+
+                # otsu thresholding
+                # val = filters.threshold_otsu(gray); frag_context = gray < val
+
+                frag_context = np.stack([255*~frag_context]*3, axis=-1).astype(np.uint8)
+                white = (255, 255, 255)
+                frag_context[fragx, fragy][frag != white] = frag[frag != white]
+                img = np.copy(img)
+                # img[fragx, fragy][frag != white] = frag[frag != white]
+                frag_context_out = dip.resize(frag_context, _pix2pix_outsize, interpolation=INTER_AREA)
+
+                # frag_context_out = frag_context_out[:, :, 0]
+                # print(img_out.shape, frag_context_out.shape)
+                # print(img_out.dtype, frag_context_out.dtype)
+                both = np.concatenate([img_out, frag_context_out], axis=1)
+
+                # plt.subplot(221)
+                # plt.imshow(img)
+                # plt.subplot(222)
+                # plt.imshow(grad)
+                # plt.subplot(223)
+                # plt.imshow(frag_context)
+                # plt.subplot(224)
+                # plt.imshow(both)
+                # plt.show()
+
+                dip.im_write(both, out_pix2pix_name())
+                # break
 
 if __name__ == '__main__':
     main_pix2pix_context()
