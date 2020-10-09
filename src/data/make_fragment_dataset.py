@@ -7,6 +7,10 @@ import numpy as np
 import dippykit as dip
 import matplotlib.pyplot as plt
 
+import cv2
+from skimage import filters
+from scipy.ndimage.morphology import binary_erosion
+
 
 sin = lambda ang: np.sin(ang * np.pi / 180)
 cos = lambda ang: np.cos(ang * np.pi / 180)
@@ -193,7 +197,7 @@ def fragment(img, m_min, m_max, n_min, n_max, frag_size=default_frag_size):
     # plt.subplot(122)
     # plt.imshow(new_img)
     # plt.show()
-    return new_img
+    return new_img, (m_start, n_start)
 
 
 def main_biggan():
@@ -212,7 +216,7 @@ def main_biggan():
 
         frag_failed = False
         for n in range(n_fragments):
-            frag = fragment(img, m_min, m_max, n_min, n_max)
+            frag, _ = fragment(img, m_min, m_max, n_min, n_max)
             if frag is None:
                 frag_failed = True
                 break
@@ -261,7 +265,7 @@ def main_pix2pix():
 
         for n in range(n_fragments):
             frag_size = max(img.shape[0], img.shape[1]) // 4
-            frag = fragment(img, m_min, m_max, n_min, n_max, frag_size=frag_size)
+            frag, _ = fragment(img, m_min, m_max, n_min, n_max, frag_size=frag_size)
             if frag is None:
                 break
             else:
@@ -272,6 +276,55 @@ def main_pix2pix():
 
                 dip.im_write(both, out_pix2pix_name())
 
+def main_pix2pix_context():
+    def out_pix2pix_name():
+        global _pix2pix_counter
+        outname = f'{_pix2pix_dir}/{_pix2pix_counter}.jpg'
+        _pix2pix_counter += 1
+        return outname
+
+    for f_img in glob.glob(dir_in + '/*'):
+        try:
+            img = dip.imread(f_img)
+        except:
+            continue
+        img_out = dip.resize(img, _pix2pix_outsize)
+        print(f_img, img.shape)
+        if len(img.shape) == 3:
+            gray = np.mean(img, axis=-1)
+        else:
+            # gray = img
+            continue
+        grad = dip.transforms.edge_detect(gray)
+        mask, m_min, m_max, n_min, n_max = space_fill(grad)
+
+        for n in range(n_fragments):
+            frag_size = max(img.shape[0], img.shape[1]) // 4
+            frag, pos = fragment(img, m_min, m_max, n_min, n_max, frag_size=frag_size)
+            if frag is None:
+                break
+            else:
+                frag_context2 = grad > np.percentile(grad, 95)
+                ret, thresh = cv2.threshold(grad, np.percentile(grad, 95), 255, 0)
+                contours, hier = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                frag_context = np.zeros_like(grad)
+                cv2.drawContours(frag_context, contours, -1, 255, 3)
+                # val = filters.threshold_otsu(gray); frag_context = gray < val
+                # frag_context2 = frag_context & binary_erosion(frag_context)
+                # both = np.concatenate([img_out, frag_context], axis=1)
+                plt.subplot(131)
+                plt.imshow(grad)
+                plt.subplot(132)
+                plt.imshow(frag_context)
+                plt.subplot(133)
+                plt.imshow(frag_context2)
+                # plt.imshow(both)
+                plt.show()
+
+                # dip.im_write(both, out_pix2pix_name())
+                break
+
 if __name__ == '__main__':
-    main_pix2pix()
+    main_pix2pix_context()
+    # main_pix2pix()
     # main_biggan()
