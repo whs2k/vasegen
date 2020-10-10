@@ -29,7 +29,7 @@ if not os.path.isdir(dir_out):
 out_img = lambda img_id: f'{dir_out}/full_{img_id}.jpg'
 out_frag = lambda img_id, n_frag: f'{dir_out}/frag_{img_id}_{n_frag}.jpg'
 
-n_fragments = 2
+n_fragments = 10
 
 _pix2pix_counter = 1
 _pix2pix_marker_size = 5
@@ -401,6 +401,19 @@ def main_pix2pix():
 
                 dip.im_write(both, out_pix2pix_name())
 
+
+def isInHull(P,hull):
+    '''
+    Datermine if the list of points P lies inside the hull
+    :return: list
+    List of boolean where true means that the point is inside the convex hull
+    '''
+    A = hull.equations[:,0:-1]
+    b = np.transpose(np.array([hull.equations[:,-1]]))
+    isInHull = np.all((A @ np.transpose(P)) <= np.tile(-b,(1,len(P))),axis=0)
+    return isInHull
+
+
 def main_pix2pix_context():
     def out_pix2pix_name():
         global _pix2pix_counter
@@ -431,6 +444,48 @@ def main_pix2pix_context():
         markerx = _pix2pix_marker_size * (grad.shape[0]) // _pix2pix_outsize[0] // 2
         markery = _pix2pix_marker_size * (grad.shape[1]) // _pix2pix_outsize[1] // 2
 
+        grad_top = grad > np.percentile(grad, 99)
+        border_inds = np.argwhere(grad_top)
+        hull = ConvexHull(border_inds)
+        perim = border_inds[hull.vertices]
+        perim = np.concatenate((perim, border_inds[hull.vertices[:1]]), axis=0)
+        _frag_context = np.zeros_like(grad_top)
+        for a, b in zip(perim[:-1], perim[1:]):
+            a, b = np.array(a), np.array(b)
+            for t in np.linspace(0, 1, max(grad.shape)):
+                p = t * a + (1 - t) * b
+                ind = np.round(p).astype(np.int)
+                mstart = max(ind[0] - markerx, 0)
+                mstop = min(ind[0] + markerx, grad.shape[0] - 1)
+                nstart = max(ind[1] - markery, 0)
+                nstop = min(ind[1] + markery, grad.shape[1] - 1)
+                _frag_context[mstart:mstop, nstart:nstop] = 1
+        mm = list(np.ndindex(_frag_context.shape[:2]))
+        out_hull = isInHull(mm, hull)
+        mm = np.array(mm)[~out_hull]
+        # print(mm)
+        # input(out_hull)
+        _frag_context = np.stack([255*~_frag_context]*3, axis=-1).astype(np.uint8)
+        _frag_context[mm[:, 0], mm[:, 1]] = img[mm[:, 0], mm[:, 1]]
+
+        # binary erosion - erodes binary blocks like sand bars
+        # frag_context2 = frag_context & binary_erosion(frag_context)
+
+        # threshold/contour method
+        # ret, thresh = cv2.threshold(grad, np.percentile(grad, 95), 255, 0)
+        # contours, hier = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # print(contours, hier.shape)
+        # frag_context = np.zeros_like(grad)
+        # cv2.drawContours(frag_context, contours, -1, 255, 3)
+        # draw contours according to hierarchy
+        # frag_context2 = np.zeros_like(grad)
+        # hier = (hier - np.min(hier)) / (np.max(hier) - np.min(hier))
+        # for h, contlist in zip(hier[0], contours):
+        #     for cont in contlist:
+        #         frag_context2[cont[0, 1], cont[0, 0]] = max(h)
+
+        # otsu thresholding
+        # val = filters.threshold_otsu(gray); frag_context = gray < val
         for n in range(n_fragments):
             # frag_size = max(img.shape[0], img.shape[1]) // 4
             frag_size = img.shape[0]//4, img.shape[1]//4
@@ -440,46 +495,10 @@ def main_pix2pix_context():
             if frag is None:
                 break
             else:
-                grad_top = grad > np.percentile(grad, 99)
-                border_inds = np.argwhere(grad_top)
-                hull = ConvexHull(border_inds)
-                perim = border_inds[hull.vertices]
-                perim = np.concatenate((perim, border_inds[hull.vertices[:1]]), axis=0)
-                frag_context = np.zeros_like(grad_top)
-                for a, b in zip(perim[:-1], perim[1:]):
-                    a, b = np.array(a), np.array(b)
-                    for t in np.linspace(0, 1, max(grad.shape)):
-                        p = t * a + (1 - t) * b
-                        ind = np.round(p).astype(np.int)
-                        mstart = max(ind[0]-markerx, 0)
-                        mstop = min(ind[0]+markerx, grad.shape[0]-1)
-                        nstart = max(ind[1]-markery, 0)
-                        nstop = min(ind[1]+markery, grad.shape[1]-1)
-                        frag_context[mstart:mstop, nstart:nstop] = 1
-
-                # binary erosion - erodes binary blocks like sand bars
-                # frag_context2 = frag_context & binary_erosion(frag_context)
-
-                # threshold/contour method
-                # ret, thresh = cv2.threshold(grad, np.percentile(grad, 95), 255, 0)
-                # contours, hier = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-                # print(contours, hier.shape)
-                # frag_context = np.zeros_like(grad)
-                # cv2.drawContours(frag_context, contours, -1, 255, 3)
-                # draw contours according to hierarchy
-                # frag_context2 = np.zeros_like(grad)
-                # hier = (hier - np.min(hier)) / (np.max(hier) - np.min(hier))
-                # for h, contlist in zip(hier[0], contours):
-                #     for cont in contlist:
-                #         frag_context2[cont[0, 1], cont[0, 0]] = max(h)
-
-                # otsu thresholding
-                # val = filters.threshold_otsu(gray); frag_context = gray < val
-
-                frag_context = np.stack([255*~frag_context]*3, axis=-1).astype(np.uint8)
+                frag_context = np.copy(_frag_context)
                 white = (255, 255, 255)
                 frag_context[fragx, fragy][frag != white] = frag[frag != white]
-                img = np.copy(img)
+                # img = np.copy(img)
                 # img[fragx, fragy][frag != white] = frag[frag != white]
                 frag_context_out = dip.resize(frag_context, _pix2pix_outsize, interpolation=INTER_AREA)
 
