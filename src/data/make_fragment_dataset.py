@@ -35,6 +35,7 @@ _pix2pix_counter = 1
 _pix2pix_marker_size = 5
 _pix2pix_outsize = (256, 256)
 _pix2pix_dir = 'data/processed/pix2pix_vase_fragments/train/'
+out_pix2pix = lambda img_id, n_frag: f'{_pix2pix_dir}/frag_{img_id}_{n_frag}.jpg'
 os.makedirs(_pix2pix_dir, exist_ok=True)
 
 
@@ -426,7 +427,8 @@ def main_pix2pix_context():
             img = dip.imread(f_img)
         except:
             continue
-        img_out = dip.resize(img, _pix2pix_outsize, interpolation=INTER_AREA)
+        img_id = int(os.path.split(f_img)[-1].split('.')[0])
+        # img_out = dip.resize(img, _pix2pix_outsize, interpolation=INTER_AREA)
         print(f_img, img.shape)
         if len(img.shape) == 3:
             gray = np.mean(img, axis=-1)
@@ -500,12 +502,13 @@ def main_pix2pix_context():
                 frag_context[fragx, fragy][frag != white] = frag[frag != white]
                 # img = np.copy(img)
                 # img[fragx, fragy][frag != white] = frag[frag != white]
-                frag_context_out = dip.resize(frag_context, _pix2pix_outsize, interpolation=INTER_AREA)
+                # frag_context_out = dip.resize(frag_context, _pix2pix_outsize, interpolation=INTER_AREA)
 
                 # frag_context_out = frag_context_out[:, :, 0]
                 # print(img_out.shape, frag_context_out.shape)
                 # print(img_out.dtype, frag_context_out.dtype)
-                both = np.concatenate([img_out, frag_context_out], axis=1)
+                # both = np.concatenate([img_out, frag_context_out], axis=1)
+                both = np.concatenate([img, frag_context], axis=1)
 
                 # plt.subplot(221)
                 # plt.imshow(img)
@@ -517,7 +520,7 @@ def main_pix2pix_context():
                 # plt.imshow(both)
                 # plt.show()
 
-                dip.im_write(both, out_pix2pix_name())
+                dip.im_write(both, out_pix2pix(img_id, n))
                 # break
 
 if __name__ == '__main__':
