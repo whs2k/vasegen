@@ -7,7 +7,7 @@ from cv2 import INTER_AREA, INTER_CUBIC
 
 
 try:
-    outsize = (int(sys.argv[1]), int(sys.argv[1]))
+    outsize = (int(sys.argv[1])*2, int(sys.argv[1]))
 except:
     print('provide a number for the side of the square image to scale to')
     exit()
