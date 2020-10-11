@@ -11,7 +11,7 @@ batch=16
 elif [ $size == '512' ]; then
 
 model=unet_512
-batch=16
+batch=8
 
 else
 
@@ -23,6 +23,6 @@ python train.py \
 --dataroot ../../data/processed/pix2pix_vase_fragments_512 --name pix2pix_vase_fragments_$size \
 --model pix2pix --netG $model --direction BtoA --lambda_L1 100 \
 --dataset_mode aligned --norm batch --pool_size 0 \
---batch_size $batch --n_epochs 10 --n_epochs_decay 10 --preprocess none
+--batch_size $batch --n_epochs 20 --n_epochs_decay 5 --preprocess none
 # --num_threads 4 --preprocess resize_and_crop
 # --verbose --n_layers_D 3 --no-flip --continue
