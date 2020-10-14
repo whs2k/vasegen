@@ -3,7 +3,7 @@
 VaseGen uses generative adversarial networks to reconstruct ancient vases! This project started by scraping a bunch of vases from the Met Museum website and aggregating all of their relevant metadata. An example vase is shown here:
 
 <p align="center">
-<img src="https://collectionapi.metmuseum.org/api/collection/v1/iiif/254861/530627/main-image" alt="drawing" alt="Met Vase Example"/>
+<img src="https://collectionapi.metmuseum.org/api/collection/v1/iiif/254861/530627/main-image" width="400" alt="Met Vase Example"/>
 </p>
 <p align="left"/>
 
