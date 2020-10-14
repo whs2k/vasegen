@@ -14,7 +14,7 @@ These >20,000 vases were then filtered down to exclude fragments and include onl
 </p>
 <p align="left"/>
 
-The fragment dataset was then fit using both BigGAN ([Brock et al.](https://arxiv.org/abs/1809.11096)) and pix2pix ([Zhu et al.](https://arxiv.org/abs/1703.10593)) to create the following results
+The fragment dataset was then fit using both BigGAN ([Brock et al.](https://arxiv.org/abs/1809.11096)) and pix2pix ([Zhu et al.](https://arxiv.org/abs/1703.10593)) to create the following results:
 
 <p align="center">
 <img src="/examples/gen_pix2pix_example1.jpg" width="800" alt="VaseGen Example 1"/>
