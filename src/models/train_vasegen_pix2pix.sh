@@ -25,4 +25,4 @@ python train.py \
 --dataset_mode aligned --norm batch --pool_size 0 \
 --batch_size $batch --n_epochs 20 --n_epochs_decay 5 --preprocess none
 # --num_threads 4 --preprocess resize_and_crop --save_epoch_freq 1000
-# --verbose --n_layers_D 3 --no-flip --continue
+# --verbose --n_layers_D 3 --no-flip --continue --netD pixel
