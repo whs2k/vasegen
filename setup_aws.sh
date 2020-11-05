@@ -10,5 +10,5 @@ sudo ln -sT src/web /var/www/html/flaskapp
 
 echo "Add the following to"
 echo "/etc/apache2/sites-enabled/000-default.conf"
-cat mod_wsgi.txt
+cat src/web/mod_wsgi.txt
 
