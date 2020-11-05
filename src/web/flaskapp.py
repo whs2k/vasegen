@@ -97,6 +97,10 @@ def img_to_bin(img):
     return to_pil(img).tobytes().decode('iso-8859-1')
     # return str(to_pil(img).tobytes())
 
+@app.route('/')
+def home():
+    return jsonify({'success': True})
+
 @app.route('/predict', methods=['POST'])
 def predict():
     file = request.files['img']
