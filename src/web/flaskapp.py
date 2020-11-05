@@ -31,9 +31,9 @@ import os
 import sys
 
 orig = sys.argv
-sys.argv = f'{sys.argv[0]} ' \
-           f'--dataroot ' \
-           f'../../data/processed/pix2pix_vase_examples_512 ' \
+sys.argv = [sys.argv[0]]
+sys.argv+= '--dataroot ' \
+           '../../data/processed/pix2pix_vase_examples_512 ' \
            '--name pix2pix_vase_fragments_512 ' \
            '--model pix2pix --netG unet_512 --direction BtoA --dataset_mode aligned --norm batch ' \
            '--eval --preprocess none'.split()
