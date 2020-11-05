@@ -26,9 +26,23 @@ See options/base_options.py and options/test_options.py for more test options.
 See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
 See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
 """
-import io
+# import io, base64
 import os
 import sys
+
+orig = sys.argv
+sys.argv = f'{sys.argv[0]} ' \
+           f'--dataroot ' \
+           f'../../data/processed/pix2pix_vase_examples_512 ' \
+           '--name pix2pix_vase_fragments_512 ' \
+           '--model pix2pix --netG unet_512 --direction BtoA --dataset_mode aligned --norm batch ' \
+           '--eval --preprocess none'.split()
+
+# print(len(orig) == len(sys.argv))
+# for n in range(len(orig)):
+#     print(orig[n]==sys.argv[n])
+# input()
+
 os.chdir('models/pix2pix/')
 sys.path.append('.')
 from models import create_model
@@ -42,7 +56,6 @@ from data.base_dataset import get_params, get_transform
 import numpy as np
 import torch
 import torchvision
-import base64
 from PIL import Image
 
 from flask import Flask, jsonify, request
@@ -80,7 +93,9 @@ def create_img_dict(AB):
     return create_img_dict_single(A, B)
 
 def img_to_bin(img):
-    return to_pil(img).tobytes()
+    # input(to_pil(img).tobytes()[:20])
+    return to_pil(img).tobytes().decode('iso-8859-1')
+    # return str(to_pil(img).tobytes())
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -92,16 +107,13 @@ def predict():
 
     if img is not None:
         # img_tensor = to_tensor(img)
-        img_tensor = create_img_dict(img)
-        res = process_img(img_tensor)
-        print('res', type(res))
-        Image.fromarray(res).show()
         # input_tensor = transform_image(file)
-        # prediction_idx = get_prediction(input_tensor)
-        # class_id, class_name = render_prediction(prediction_idx)
-        # return jsonify({'class_id': class_id, 'class_name': class_name})
-        return jsonify({'result': '-1'})
-        # return jsonify({'result': img_to_bin(res)})
+
+        img_data = create_img_dict(img)
+        res = process_img(img_data)
+        # Image.fromarray(res).show()
+
+        return jsonify({'result': img_to_bin(res), 'mode': 'RGB', 'size': (512, 512)})
     else:
         return jsonify({'result': '-1'})
 
@@ -120,6 +132,7 @@ def run_app():
 
 if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
+
     # hard-code some parameters for test
     opt.num_threads = 0   # test code only supports num_threads = 1
     opt.batch_size = 1    # test code only supports batch_size = 1
