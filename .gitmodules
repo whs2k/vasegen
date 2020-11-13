@@ -1,9 +1,9 @@
 [submodule "data/processed/met_all"]
 	path = data/processed/met_all
-	url = git@github.com:alexsaadfalcon/vase_imgs.git
+	url = https://github.com/alexsaadfalcon/vase_imgs.git
 [submodule "models/pytorch_biggan"]
 	path = models/pytorch_biggan
-	url = git@github.com:alexsaadfalcon/biggan_vase.git
+	url = https://github.com/alexsaadfalcon/biggan_vase.git
 [submodule "models/pix2pix"]
 	path = models/pix2pix
-	url = https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix.git
+	url = https://github.com/alexsaadfalcon/pix2pix.git
