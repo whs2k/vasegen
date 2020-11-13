@@ -71,8 +71,10 @@ def load_img(file):
     return Image.open(file.stream).convert('RGB')
 
 def create_img_dict_single(A, B=None):
+    if type(A) is torch.Tensor:
+        A = to_pil(A)
     if B is None:
-        B = to_pil(torch.zeros(3, A.size[0], A.size[1]))
+        B = to_pil(torch.randn(3, A.size[0], A.size[1]))
 
     # apply the same transform to both A and B
     transform_params = get_params(opt, A.size)
@@ -149,6 +151,8 @@ if __name__ == '__main__':
     model.setup(opt)               # regular setup: load and print networks; create schedulers
     if opt.eval:
         model.eval()
-
+    # model.__name__ = 'VaseGen512'
+    # trace = torch.jit.trace(model, create_img_dict_single(torch.randn(3, 512, 512)))
+    # trace.save('test.pt')
     os.chdir('../..')
     run_app()
